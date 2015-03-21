@@ -6,44 +6,59 @@ App.View.ChatView = Backbone.View.extend({
 
     events: {
         "click .submit": "sendMessage",
-        "enter .chat_input": "sendMessage"
+        "enter .chat_input": "sendMessage",
+        "click .join": "newUser",
+        "enter .user_name": "newUser"
     },
 
     initialize: function() {
-        this.enterEvent();
         this.$el.html(this.template());
-        this.initializeWebsocket();
+        this.dispatcher = new WebSocketRails('localhost:3666/websocket');
         this.$el.show();
+        this.enterEvent();
     },
 
     enterEvent: function() {
-        $('input').keyup(function (e) {
+        this.$('input').keyup(function (e) {
             if (e.keyCode == 13) {
                 $(this).trigger('enter');
             }
         });
     },
 
-    initializeWebsocket: function() {
-        this.dispatcher = new WebSocketRails('localhost:3666/websocket');
-        this.dispatcher.on_open = function(data) {
-            console.log("Connection established");
-        };
+    initializeBinding: function() {
         var self = this;
         this.dispatcher.bind('message', function(res){
             self.receiveMessage(res);
         });
+
+        this.dispatcher.bind('new_user', function(res){
+            self.userJoined(res);
+        });
+    },
+
+    newUser: function() {
+        this.user = this.$el.find(".user_name").val();
+        this.$el.find(".user").addClass("hide");
+        this.$el.find(".footer").removeClass("hide");
+        this.initializeBinding();
+        this.dispatcher.trigger('new_user', {userName: this.user});
     },
 
     receiveMessage: function(res) {
-        this.$el.find(".messages").append(this.messageTemplate({message: res['message']}));
+        var displayMessage = res['user'] + ": " + res['message'];
+        this.$el.find(".messages").prepend(this.messageTemplate({message: displayMessage, time: res['time']}));
     },
 
     sendMessage: function() {
         var element = this.$el.find(".chat_input");
         var message = element.val();
         element.val("");
-        this.dispatcher.trigger('message', {message: message})
+        this.dispatcher.trigger('message', {message: message, user: this.user})
+    },
+
+    userJoined: function(res) {
+        this.$el.find(".messages").prepend(this.messageTemplate({message: "User " + res['userName'] + " Joined", time: res['time']}));
     }
 
 
